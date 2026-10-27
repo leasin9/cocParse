@@ -1,5 +1,5 @@
-const CACHE = 'cocparse-web-v1';
-const ASSETS = ['./', './index.html', './styles.css', './app.js', './core.js', './names.js', './icon.svg', './manifest.webmanifest'];
+const CACHE = 'cocparse-web-v2';
+const ASSETS = ['./', './index.html', './styles.css', './app.js', './core.js', './names.js', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png', './manifest.webmanifest'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

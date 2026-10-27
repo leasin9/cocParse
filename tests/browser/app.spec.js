@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('empty state and demo cover both villages without saving fictional accounts', async ({ page }) => {
-  await expect(page.getByRole('heading', { name: '你的部落，准备就绪。' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '暂无账号' })).toBeVisible();
   await page.getByRole('button', { name: '先看看示例' }).click();
   await expect(page.getByRole('heading', { name: 'Blue Horizon' })).toBeVisible();
   await expect(page.locator('.upgrade-row')).toHaveCount(7);
@@ -72,7 +72,7 @@ test('backup download restores names, data and multiple accounts after deletion'
     await page.getByRole('button', { name: '删除账号', exact: true }).click();
     await page.getByRole('button', { name: '确认删除' }).click();
   }
-  await expect(page.getByRole('heading', { name: '你的部落，准备就绪。' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '暂无账号' })).toBeVisible();
   await page.locator('.heading-actions [data-action="import"]').click();
   await page.locator('#import-file').setInputFiles(backupPath);
   await page.getByRole('button', { name: '解析并保存' }).click();
@@ -93,13 +93,17 @@ test('real-time countdown completes and moves between filters', async ({ page })
 
 test('English language persists and raw export remains accessible', async ({ page }) => {
   await page.getByRole('button', { name: '先看看示例' }).click();
-  await page.getByRole('button', { name: 'Switch to English' }).click();
-  await expect(page.getByRole('heading', { name: 'Your village, in view.' })).toBeVisible();
+  await page.locator(page.viewportSize().width <= 760 ? '.tabbar [data-action="settings"]' : '.sidebar-tools [data-action="settings"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Switch to English' }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'cocParse', exact: true })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await page.getByRole('button', { name: 'View raw JSON' }).click();
   await expect(page.locator('.raw-json')).toContainText('builder_boost');
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Your village story starts here.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No Accounts' })).toBeVisible();
 });
 
 test('corrupt storage is preserved until reset is explicitly confirmed', async ({ page }) => {
@@ -128,7 +132,7 @@ test('storage failure does not claim an import was saved', async ({ page }) => {
 test('cached application reopens offline with saved accounts', async ({ page, context }) => {
   await importJSON(page, demoSnapshot());
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
-  await expect.poll(() => page.evaluate(() => caches.keys())).toContain('cocparse-web-v1');
+  await expect.poll(() => page.evaluate(() => caches.keys())).toContain('cocparse-web-v2');
   await page.reload();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await context.setOffline(true);
@@ -162,4 +166,40 @@ test('alerts fire once at the upgrade lead time and clock tower cooldown', async
   expect(await page.evaluate(() => receivedAlerts.length)).toBe(2);
   await page.getByRole('button', { name: '提醒已开启', exact: true }).click();
   await expect(page.getByRole('button', { name: '开启提醒', exact: true })).toBeVisible();
+});
+
+test('cocParse branding and system dark mode work at narrow and wide sizes', async ({ page }) => {
+  await expect(page).toHaveTitle('cocParse · 部落冲突账号管理');
+  expect(await page.evaluate(async () => (await (await fetch('./manifest.webmanifest')).json()).name)).toBe('cocParse');
+  await page.getByRole('button', { name: '先看看示例' }).click();
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(page.getByRole('heading', { name: 'cocParse', exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(242, 242, 247)');
+});
+
+test('mobile toolbar opens account search, switches accounts and reaches settings', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'The desktop uses its persistent sidebar.');
+  await importJSON(page, [{ ...demoSnapshot(), tag: '#ONE' }, { ...demoSnapshot(), tag: '#TWO' }]);
+  await page.locator('.tabbar [data-action="accounts"]').click();
+  await page.getByRole('dialog').getByLabel('搜索账号', { exact: true }).fill('#ONE');
+  await expect(page.locator('#sheet-account-list .account')).toHaveCount(1);
+  await page.locator('#sheet-account-list .account').click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: '#ONE', exact: true })).toBeVisible();
+  await page.locator('.tabbar [data-action="import"]').click();
+  await expect(page.locator('#import-text')).toBeVisible();
+  await page.getByRole('button', { name: '取消', exact: true }).click();
+  await page.locator('.tabbar [data-action="settings"]').click();
+  await expect(page.getByRole('dialog').getByText('cocParse', { exact: true })).toBeVisible();
+  const downloadEvent = page.waitForEvent('download');
+  await page.getByRole('dialog').getByRole('button', { name: /导出备份/ }).click();
+  expect((await downloadEvent).suggestedFilename()).toMatch(/^cocParse-backup-/);
+  await page.getByRole('button', { name: '完成', exact: true }).click();
+  await expect(page.locator('.tabbar [data-action="accounts"]')).toHaveAttribute('aria-current', 'true');
 });

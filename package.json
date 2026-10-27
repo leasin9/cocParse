@@ -1,6 +1,6 @@
 {
-  "name": "coc-record-web",
-  "version": "1.0.0",
+  "name": "cocparse",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {

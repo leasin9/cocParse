@@ -1,8 +1,8 @@
-# COC Record Web
+# cocParse
 
 [在线使用](https://leasin9.github.io/cocParse/) · [原生项目](https://codeberg.org/leasin9/COCRecord) · [来源与致谢](NOTICE.md)
 
-将 SwiftUI 版 COCRecord 迁移到浏览器的部落冲突多账号升级记录工具。纯静态 HTML、CSS 和 JavaScript，直接部署到 GitHub Pages，无运行时依赖、无服务器、无需登录。
+将 SwiftUI 版 COCRecord 迁移到浏览器的部落冲突多账号升级记录工具。采用 iOS 原生应用风格，支持系统深色模式。纯静态 HTML、CSS 和 JavaScript，直接部署到 GitHub Pages，无运行时依赖、无服务器、无需登录。
 
 ## 功能
 
