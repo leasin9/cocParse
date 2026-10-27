@@ -1,29 +1,81 @@
-# cocParse
+# COC Record Web
 
-通过 GitHub Actions 自动部署到 GitHub Pages 的静态网站。
+[在线使用](https://leasin9.github.io/cocParse/) · [原生项目](https://codeberg.org/leasin9/COCRecord) · [来源与致谢](NOTICE.md)
 
-网站地址（首次部署成功后可访问）：https://leasin9.github.io/cocParse/
+将 SwiftUI 版 COCRecord 迁移到浏览器的部落冲突多账号升级记录工具。纯静态 HTML、CSS 和 JavaScript，直接部署到 GitHub Pages，无运行时依赖、无服务器、无需登录。
 
-## 首次启用
+## 功能
 
-1. 打开仓库的 [Settings → Pages](https://github.com/leasin9/cocParse/settings/pages)。
-2. 在 **Build and deployment → Source** 中选择 **GitHub Actions**。
-3. 打开 [Actions](https://github.com/leasin9/cocParse/actions/workflows/pages.yml)，选择 **Deploy static site to GitHub Pages → Run workflow → main**，触发首次部署。
+- **账号导入**：粘贴 JSON、读取剪贴板、选择或拖入文件；支持单个账号、账号数组和本站完整备份。
+- **多账号管理**：以玩家 tag 为唯一值，支持切换、搜索、别名和删除；较旧的导出不会覆盖较新的记录。
+- **升级日程**：家乡与夜世界分开展示，每秒刷新真实剩余时间和预计完成时间，可筛选进行中、已完成或全部升级。
+- **加速换算**：建筑工人药水 10 倍、研究药水 24 倍、战宠药水 24 倍、时钟塔 10 倍；药水用尽后的时间按正常速度计算。同步显示游戏内剩余时间和时钟塔冷却。
+- **村庄详情**：双语物品名称、英雄、建筑、陷阱、兵种、法术、战宠、攻城机器及装备的等级与数量，支持原始 JSON 查看、复制和下载。
+- **本地存档**：浏览器持久化、备份导出与恢复、多标签页同步；读取失败时保留原数据，写入失败时显示错误。
+- **浏览器提醒**：主动授权后，页面运行时在升级结束前约 8 秒提醒，并提醒时钟塔冷却结束。每个账号可单独开关。
+- **桌面与手机**：响应式布局，中英文切换；首次成功缓存后可离线打开。首页提供不会写入存档的示例账号。
 
-之后每次推送到 `main`，网站都会自动更新。也可以从 Actions 手动触发部署。
+## 使用
 
-## 开发
+1. 从游戏中取得账号导出的完整 JSON。
+2. 点击「导入账号」，粘贴数据或选择 JSON 文件，再点击「解析并保存」。
+3. 导入其他账号，或在游戏进度变化后重新导入同一账号的数据。
+4. 定期使用「导出备份」。更换设备后通过「导入账号」恢复该备份。
 
-网页文件放在 `public/`，首页为 `public/index.html`。部署时仅上传这个目录。
+账号数据只保存在当前浏览器的 `localStorage` 中，不会上传到服务器。清理网站数据、更换浏览器或设备可能导致记录丢失；隐私模式也可能不保留数据。
 
-本地预览：
+倒计时依据 JSON 的 `timestamp`（Unix 秒）和导出时剩余的 `timer`、`boosts` 计算，无法读取导出后新使用的药水或新开启的升级。进度条表示本次导出后、相对于导出时剩余升级时间的进度。
+
+### 提醒限制
+
+静态网站无法在页面完全关闭后可靠执行定时任务。请保持页面打开；设备休眠或浏览器暂停页面时，提醒可能延迟。浏览器需要支持通知并获得授权，部分手机浏览器还受系统和安装方式限制。原生应用的 Siri / 快捷指令、自动后台剪贴板扫描和关闭应用后的定时通知未迁移；Web 版提供用户主动触发的剪贴板读取及页面运行期间的提醒。
+
+## 本地开发
+
+预览不需要安装依赖：
 
 ```sh
 python3 -m http.server 8000 --directory public
 ```
 
-访问 http://localhost:8000/。
+访问 http://localhost:8000/。也可以运行 `npm start`。
 
-项目部署在 `/cocParse/` 子路径，引用站内资源时使用 `./styles.css` 等相对路径。
+运行测试（Node.js 24 或更新版本）：
 
-部署配置：`.github/workflows/pages.yml`，基于 GitHub 官方 [静态网站模板](https://github.com/actions/starter-workflows/blob/main/pages/static.yml)。
+```sh
+npm ci
+npm test
+npx playwright install chromium
+npm run test:e2e
+```
+
+Linux CI 首次安装浏览器时可使用 `npx playwright install --with-deps chromium`。
+
+核心测试对照原项目的 Swift 测试迁移，覆盖导入更新、旧数据保护、双语名称、升级扫描、四类药水及时间格式化。浏览器测试在桌面 Chromium 和手机尺寸的 Chromium 中验证导入、备份恢复、持久化、错误处理、通知和离线访问。
+
+## 自动部署
+
+`.github/workflows/pages.yml` 在推送 `main`、提交 PR 或手动触发时运行逻辑和浏览器测试。只有测试通过后，`main` 的推送或手动运行才会将 `public/` 发布到 GitHub Pages；PR 只运行测试。
+
+本仓库已启用 Pages。重新建仓库时，在 **Settings → Pages → Build and deployment → Source** 中选择 **GitHub Actions**。
+
+所有站内路径使用相对地址，兼容 `/cocParse/` 子目录。部署只上传 `public/`，测试代码和开发依赖不会发布。
+
+## 文件结构
+
+```text
+public/
+  index.html             网页入口
+  app.js                 界面、账号操作、提醒和本地存档协调
+  core.js                独立于 DOM 的解析、更新、时间计算与存储接口
+  names.js               从原项目迁移的中英文名称表
+  styles.css             桌面和手机布局
+  sw.js                  应用资源离线缓存与通知点击处理
+  manifest.webmanifest   Web 应用元数据
+  icon.svg               网站图标
+tests/
+  core.test.js           核心行为回归测试
+  browser/app.spec.js    浏览器交互测试
+```
+
+原项目及名称数据来源见 [NOTICE.md](NOTICE.md)。

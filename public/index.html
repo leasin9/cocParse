@@ -3,20 +3,18 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="cocParse 静态网站">
-    <title>cocParse</title>
-    <style>
-      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-      body { margin: 0; min-height: 100svh; display: grid; place-items: center; }
-      main { padding: 2rem; max-width: 40rem; }
-      h1 { font-size: clamp(2.5rem, 10vw, 5rem); margin: 0 0 1rem; }
-      p { line-height: 1.8; }
-    </style>
+    <meta name="theme-color" content="#203d35">
+    <meta name="description" content="COC Record — 部落冲突多账号升级记录、加速换算与实时倒计时。数据只保存在你的浏览器。">
+    <title>COC Record · 部落升级手记</title>
+    <link rel="icon" href="./icon.svg" type="image/svg+xml">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="stylesheet" href="./styles.css">
+    <script type="module" src="./app.js"></script>
   </head>
   <body>
-    <main>
-      <h1>cocParse</h1>
-      <p>网站建设中。</p>
-    </main>
+    <div id="app"><p class="boot-message">正在打开 COC Record…</p></div>
+    <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+    <div id="toast" role="status" aria-live="polite" hidden></div>
+    <noscript>请启用 JavaScript 以使用账号导入和升级倒计时。</noscript>
   </body>
 </html>
