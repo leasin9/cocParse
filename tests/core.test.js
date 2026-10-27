@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BOOSTS, STORAGE_KEY, demoSnapshot, formatDuration, hallLevel, importAccounts, itemName, loadAccounts, makeBackup, parseImport, realDuration, saveAccounts, scanUpgrades, validateSnapshot } from '../public/core.js';
+import { BOOSTS, STORAGE_KEY, demoSnapshot, formatDuration, hallLevel, importAccounts, importClipboard, itemName, loadAccounts, makeBackup, parseImport, realDuration, saveAccounts, scanUpgrades, validateSnapshot } from '../public/core.js';
 
 const timestamp = 1760000000;
 const now = elapsed => (timestamp + elapsed) * 1000;
@@ -184,4 +184,42 @@ test('demo is a valid export with upgrade data in both villages', () => {
   const demo = validateSnapshot(demoSnapshot(now(0)));
   assert.equal(hallLevel(demo), 16); assert.equal(hallLevel(demo, true), 10);
   assert.ok(scanUpgrades(demo, 'home', now(0)).length > 0); assert.ok(scanUpgrades(demo, 'builder', now(0)).length > 0);
+});
+
+test('clipboard accepts game exports and silently ignores unrelated content', () => {
+  assert.equal(importClipboard([], 'a private note'), null);
+  assert.equal(importClipboard([], '{"foo":1}'), null);
+  const result = importClipboard([], JSON.stringify(snapshot()), now(0));
+  assert.equal(result.added, 1);
+  assert.equal(result.accounts[0].tag, '#ABC123');
+});
+
+test('clipboard ignores duplicates even with whitespace and reordered properties', () => {
+  const first = importClipboard([], JSON.stringify(snapshot({ buildings: [{ data: 1000001, lvl: 16 }] })), now(0));
+  const reordered = { buildings: [{ lvl: 16, data: 1000001 }], timestamp, tag: '#abc123' };
+  assert.equal(importClipboard(first.accounts, JSON.stringify(reordered, null, 2), now(100)), null);
+  assert.equal(first.accounts[0].updateCount, 1);
+});
+
+test('clipboard skips stale exports but accepts equal-time corrections and newer exports', () => {
+  const accounts = importClipboard([], JSON.stringify(snapshot()), now(0)).accounts;
+  assert.equal(importClipboard(accounts, JSON.stringify(snapshot({ timestamp: timestamp - 1 }))), null);
+  const correction = importClipboard(accounts, JSON.stringify(snapshot({ buildings: [{ data: 1000001, lvl: 16 }] })), now(100));
+  assert.equal(correction.updated, 1);
+  assert.equal(correction.accounts[0].updateCount, 2);
+  const newer = importClipboard(correction.accounts, JSON.stringify(snapshot({ timestamp: timestamp + 1 })), now(200));
+  assert.equal(newer.updated, 1);
+});
+
+test('clipboard never automatically restores backup metadata', () => {
+  const accounts = importAccounts([], entries(snapshot()), now(0)).accounts;
+  assert.equal(importClipboard([], makeBackup(accounts)), null);
+});
+
+test('clipboard validates the whole batch and applies only the latest snapshot per tag', () => {
+  assert.equal(importClipboard([], JSON.stringify([snapshot(), { tag: '#BROKEN' }])), null);
+  const result = importClipboard([], JSON.stringify([snapshot(), snapshot({ timestamp: timestamp + 10 }), snapshot({ timestamp: timestamp - 1 }), { tag: '#SECOND', timestamp }]), now(100));
+  assert.equal(result.added, 2);
+  assert.equal(result.accounts[0].updateCount, 1);
+  assert.equal(JSON.parse(result.accounts[0].rawJSON).timestamp, timestamp + 10);
 });

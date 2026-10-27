@@ -245,6 +245,10 @@
   .settings-row > span:nth-child(2) { flex: 1; }
   .settings-row > .icon { width: 12px; height: 12px; color: var(--tertiary); }
   .settings-value { color: var(--secondary); font-size: 13px; }
+  .settings-switch { width: 42px; height: 26px; background: var(--control); border-radius: 15px; position: relative; flex-shrink: 0; }
+  .settings-switch::after { content: ''; width: 22px; height: 22px; position: absolute; top: 2px; left: 2px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #00000020; transition: transform .15s; }
+  .settings-switch.is-on { background: #34c759; }
+  .settings-switch.is-on::after { transform: translateX(16px); }
   .settings-symbol { width: 28px; height: 28px; border-radius: 7px; background: var(--blue); display: grid; place-items: center; color: #fff; flex-shrink: 0; }
   .settings-symbol .icon { width: 18px; height: 18px; }
   .settings-symbol.purple { background: #af52de; }

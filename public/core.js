@@ -83,6 +83,27 @@ export function makeBackup(accounts) {
   return JSON.stringify({ format: 'coc-record-web', version: 1, exportedAt: new Date().toISOString(), accounts }, null, 2);
 }
 
+/** 剪贴板只自动导入游戏导出，跳过备份、旧快照和重复内容。 */
+export function importClipboard(accounts, text, now = Date.now()) {
+  let entries;
+  try { entries = parseImport(text); } catch { return null; }
+  if (entries.some(entry => entry.metadata)) return null;
+  const latest = new Map();
+  for (const entry of entries) {
+    const previous = latest.get(entry.snapshot.tag);
+    if (!previous || entry.snapshot.timestamp >= previous.snapshot.timestamp) latest.set(entry.snapshot.tag, entry);
+  }
+  const canonical = snapshot => JSON.stringify(snapshot, (key, value) => value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.keys(value).sort().map(name => [name, value[name]])) : value);
+  const fresh = [...latest.values()].filter(({ snapshot }) => {
+    const account = accounts.find(item => item.tag === snapshot.tag);
+    if (!account) return true;
+    const saved = JSON.parse(account.rawJSON);
+    return snapshot.timestamp >= saved.timestamp && canonical(snapshot) !== canonical(saved);
+  });
+  return fresh.length ? importAccounts(accounts, fresh, now) : null;
+}
+
 /** 写入成功后再更新界面，避免配额或隐私模式导致静默丢失。 */
 export function saveAccounts(storage, accounts) {
   storage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, accounts }));

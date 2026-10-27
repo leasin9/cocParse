@@ -17,6 +17,9 @@ async function accountAction(page, name) {
 }
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText: async () => '', writeText: async () => {} } });
+  });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -146,7 +149,7 @@ test('storage failure does not claim an import was saved', async ({ page }) => {
 test('cached application reopens offline with saved accounts', async ({ page, context }) => {
   await importJSON(page, demoSnapshot());
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
-  await expect.poll(() => page.evaluate(() => caches.keys())).toContain('cocparse-web-v3');
+  await expect.poll(() => page.evaluate(() => caches.keys())).toContain('cocparse-web-v4');
   await page.reload();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await context.setOffline(true);

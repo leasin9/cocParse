@@ -1,4 +1,4 @@
-import { BOOSTS, STORAGE_KEY, demoSnapshot, formatDuration, hallLevel, importAccounts, itemName, loadAccounts, makeBackup, parseImport, saveAccounts, scanUpgrades } from './core.js';
+import { BOOSTS, STORAGE_KEY, demoSnapshot, formatDuration, hallLevel, importAccounts, importClipboard, itemName, loadAccounts, makeBackup, parseImport, saveAccounts, scanUpgrades } from './core.js';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -44,6 +44,11 @@ let toastTimer;
 let completionSignature = '';
 let pendingNotifications = new Map();
 let registration;
+let dialogRevision = 0;
+let clipboardReading = false;
+let clipboardBlocked = false;
+let autoClipboard = true;
+try { autoClipboard = localStorage.getItem('cocparse.autoClipboard') !== 'false'; } catch { /* Use the default for this visit. */ }
 try { state.accounts = loadAccounts(localStorage); state.selected = state.accounts[0]?.tag ?? null; } catch { state.storageError = true; }
 
 function toast(message, error = false) {
@@ -147,6 +152,7 @@ function tickCountdowns() {
   }
 }
 function openDialog(title, body, footer = '') {
+  dialogRevision++;
   const dialog = $('#dialog');
   if (dialog.open) dialog.close();
   dialog.dataset.view = '';
@@ -165,7 +171,7 @@ function accountMenuDialog() {
   $('#dialog').dataset.view = 'account-menu';
 }
 function settingsDialog() {
-  openDialog(t('设置', 'Settings'), `<div class="settings-identity"><img src="./icon.svg" alt="" width="64" height="64"><div><strong>cocParse</strong><span>${t('部落冲突账号管理', 'Clash of Clans accounts')}</span></div></div><section class="settings-section"><h3>${t('偏好设置', 'Preferences')}</h3><div class="settings-group"><button class="settings-row" data-action="language" aria-label="${t('Switch to English', '切换到中文')}"><span class="settings-symbol purple">${icon('grid')}</span><span>${t('语言', 'Language')}</span><span class="settings-value">${t('中文', 'English')}</span>${icon('chevron')}</button></div></section><section class="settings-section"><h3>${t('数据管理', 'Data')}</h3><div class="settings-group"><button class="settings-row" data-action="backup" ${!state.accounts.length ? 'disabled' : ''}><span class="settings-symbol blue">${icon('download')}</span><span>${t('导出备份', 'Export backup')}</span><span class="settings-value">${state.accounts.length}${t(' 个账号', ' accounts')}</span>${icon('chevron')}</button><button class="settings-row" data-action="import"><span class="settings-symbol green">${icon('upload')}</span><span>${t('导入账号或备份', 'Import accounts or backup')}</span>${icon('chevron')}</button></div><p class="settings-note">${t('账号数据只保存在当前浏览器中。请定期导出备份。', 'Accounts stay in this browser. Export a backup regularly.')}</p></section><section class="settings-section"><h3>${t('关于', 'About')}</h3><div class="settings-group"><button class="settings-row" data-action="about"><span class="settings-symbol gray">${icon('info')}</span><span>${t('关于 cocParse', 'About cocParse')}</span><span class="settings-value">1.1</span>${icon('chevron')}</button></div></section>`, `<button class="button primary" data-action="close">${t('完成', 'Done')}</button>`);
+  openDialog(t('设置', 'Settings'), `<div class="settings-identity"><img src="./icon.svg" alt="" width="64" height="64"><div><strong>cocParse</strong><span>${t('部落冲突账号管理', 'Clash of Clans accounts')}</span></div></div><section class="settings-section"><h3>${t('偏好设置', 'Preferences')}</h3><div class="settings-group"><button class="settings-row" data-action="language" aria-label="${t('Switch to English', '切换到中文')}"><span class="settings-symbol purple">${icon('grid')}</span><span>${t('语言', 'Language')}</span><span class="settings-value">${t('中文', 'English')}</span>${icon('chevron')}</button><button class="settings-row" data-action="auto-clipboard" role="switch" aria-checked="${autoClipboard}" aria-label="${t('自动读取剪贴板', 'Read clipboard automatically')}"><span class="settings-symbol blue">${icon('copy')}</span><span>${t('自动读取剪贴板', 'Read clipboard automatically')}</span><span class="settings-switch ${autoClipboard ? 'is-on' : ''}" aria-hidden="true"></span></button></div><p class="settings-note">${t('打开或切回页面时自动导入游戏 JSON。部分浏览器需点击“导入”后授权。', 'Import game JSON on opening or returning to this page. Some browsers require tapping Import to allow access.')}</p></section><section class="settings-section"><h3>${t('数据管理', 'Data')}</h3><div class="settings-group"><button class="settings-row" data-action="backup" ${!state.accounts.length ? 'disabled' : ''}><span class="settings-symbol blue">${icon('download')}</span><span>${t('导出备份', 'Export backup')}</span><span class="settings-value">${state.accounts.length}${t(' 个账号', ' accounts')}</span>${icon('chevron')}</button><button class="settings-row" data-action="import"><span class="settings-symbol green">${icon('upload')}</span><span>${t('导入账号或备份', 'Import accounts or backup')}</span>${icon('chevron')}</button></div><p class="settings-note">${t('账号数据只保存在当前浏览器中。请定期导出备份。', 'Accounts stay in this browser. Export a backup regularly.')}</p></section><section class="settings-section"><h3>${t('关于', 'About')}</h3><div class="settings-group"><button class="settings-row" data-action="about"><span class="settings-symbol gray">${icon('info')}</span><span>${t('关于 cocParse', 'About cocParse')}</span><span class="settings-value">1.2</span>${icon('chevron')}</button></div></section>`, `<button class="button primary" data-action="close">${t('完成', 'Done')}</button>`);
   $('#dialog').dataset.view = 'settings';
 }
 function importDialog() {
@@ -193,6 +199,49 @@ function submitImport() {
     toast(t(`已新增 ${result.added} 个，更新 ${result.updated} 个，跳过旧数据 ${result.skipped} 个。`, `${result.added} added, ${result.updated} updated, ${result.skipped} older exports skipped.`));
   } catch (error) { $('#import-error').textContent = t(...(errors[error.code] ?? errors.invalidSnapshot)); $('#import-error').hidden = false; }
 }
+
+async function scanClipboard({ interactive = false, allowedView = '' } = {}) {
+  const dialog = $('#dialog');
+  const editing = () => document.activeElement?.matches('input, textarea, [contenteditable="true"]');
+  if (!autoClipboard || state.storageError || clipboardReading || !navigator.clipboard?.readText || !window.isSecureContext || document.hidden || !document.hasFocus()) return;
+  if (!interactive && (clipboardBlocked || dialog.open || editing())) return;
+  const revision = dialogRevision;
+  clipboardReading = true;
+  try {
+    // Keep this call before any await so user-triggered reads retain activation.
+    const text = await navigator.clipboard.readText();
+    clipboardBlocked = false;
+    if (!autoClipboard || revision !== dialogRevision || document.hidden || !document.hasFocus()) return;
+    if (dialog.open && (!interactive || dialog.dataset.view !== allowedView)) return;
+    if (allowedView === 'import' && $('#import-text')?.value.trim()) return;
+    if (!interactive && editing()) return;
+    const result = importClipboard(state.accounts, text);
+    if (!result || !persist(result.accounts)) return;
+    state.demo = false;
+    state.selected = result.selectedTag;
+    state.village = 'home';
+    state.filter = 'active';
+    if (dialog.open && allowedView === 'import') dialog.close();
+    render();
+    if (dialog.open && allowedView === 'settings') settingsDialog();
+    toast(t(`已从剪贴板导入：新增 ${result.added} 个，更新 ${result.updated} 个。`, `Imported from clipboard: ${result.added} added, ${result.updated} updated.`));
+  } catch {
+    // A manual import/paste remains available when the browser requires a gesture.
+    clipboardBlocked = true;
+  } finally {
+    clipboardReading = false;
+  }
+}
+
+function toggleAutoClipboard() {
+  autoClipboard = !autoClipboard;
+  clipboardBlocked = false;
+  let saved = true;
+  try { localStorage.setItem('cocparse.autoClipboard', String(autoClipboard)); } catch { saved = false; }
+  settingsDialog();
+  if (!saved) toast(t('设置仅对本次访问生效，浏览器无法保存偏好。', 'This setting applies to this visit only. The browser could not save it.'), true);
+  if (autoClipboard) void scanClipboard({ interactive: true, allowedView: 'settings' });
+}
 function download(name, text) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = name; link.click();
@@ -204,7 +253,7 @@ function rawDialog() {
   openDialog(t('原始 JSON', 'Raw JSON'), `<p class="dialog-description mono">${esc(account.tag)} · ${date(snapshotOf(account).timestamp * 1000, true)}</p><pre class="raw-json">${esc(JSON.stringify(snapshotOf(account), null, 2))}</pre>`, `<button class="button secondary" data-action="download-raw">${icon('download')}${t('下载 JSON', 'Download JSON')}</button><button class="button primary" data-action="copy-raw">${icon('copy')}${t('复制 JSON', 'Copy JSON')}</button>`);
 }
 function aboutDialog() {
-  openDialog(t('关于 cocParse', 'About cocParse'), `<div class="about-brand">${icon('castle')}<strong>cocParse<small>1.1 · Web</small></strong></div><p>${t('从 COCRecord 原生应用迁移而来，为部落冲突玩家记录多个账号、追踪升级进度。', 'A Web adaptation of the native COCRecord app, built to track accounts and upgrade progress for Clash of Clans players.')}</p><div class="about-section"><h3>${t('数据与备份', 'Data & backups')}</h3><p>${t('账号数据仅保存在当前浏览器中，不会上传到服务器。更换设备、清理网站数据或使用隐私模式可能导致记录丢失，请定期导出备份。', 'Account data stays in this browser and is not uploaded. Export a backup before switching devices or clearing site data. Private browsing may not keep records.')}</p></div><div class="about-section"><h3>${t('提醒的工作方式', 'How alerts work')}</h3><p>${t('授权后，页面运行时会在升级结束前约 8 秒或时钟塔冷却结束时提醒。请保持页面打开；关闭页面、设备休眠或浏览器暂停运行时，无法保证准时提醒。原生快捷指令和后台定时通知不适用于此 Web 版。', 'After permission is granted, the running page alerts you about 8 seconds before an upgrade finishes, or when the Clock Tower is ready. Keep the page open; closed pages, sleep, and browser suspension cannot guarantee timely alerts. Native Shortcuts and background scheduling are not available in this Web edition.')}</p></div><div class="about-section"><h3>${t('来源与致谢', 'Source & credits')}</h3><div class="credit-links"><a href="https://codeberg.org/leasin9/COCRecord" target="_blank" rel="noreferrer">COCRecord · ${t('原项目', 'Original app')}${icon('arrow')}</a><a href="https://github.com/lemonicy/clashpost" target="_blank" rel="noreferrer">clashpost · ${t('部落驿站', 'Chinese names')}${icon('arrow')}</a><a href="https://github.com/chiefpansancolt/clash-of-clans-data" target="_blank" rel="noreferrer">clash-of-clans-data${icon('arrow')}</a><a href="https://github.com/leasin9/cocParse" target="_blank" rel="noreferrer">${t('Web 版源码', 'Web source')}${icon('arrow')}</a></div></div>`, `<button class="button primary" data-action="close">${t('知道了', 'Got it')}</button>`);
+  openDialog(t('关于 cocParse', 'About cocParse'), `<div class="about-brand">${icon('castle')}<strong>cocParse<small>1.2 · Web</small></strong></div><p>${t('从 COCRecord 原生应用迁移而来，为部落冲突玩家记录多个账号、追踪升级进度。', 'A Web adaptation of the native COCRecord app, built to track accounts and upgrade progress for Clash of Clans players.')}</p><div class="about-section"><h3>${t('数据与备份', 'Data & backups')}</h3><p>${t('账号数据仅保存在当前浏览器中，不会上传到服务器。更换设备、清理网站数据或使用隐私模式可能导致记录丢失，请定期导出备份。', 'Account data stays in this browser and is not uploaded. Export a backup before switching devices or clearing site data. Private browsing may not keep records.')}</p></div><div class="about-section"><h3>${t('提醒的工作方式', 'How alerts work')}</h3><p>${t('授权后，页面运行时会在升级结束前约 8 秒或时钟塔冷却结束时提醒。请保持页面打开；关闭页面、设备休眠或浏览器暂停运行时，无法保证准时提醒。原生快捷指令和后台定时通知不适用于此 Web 版。', 'After permission is granted, the running page alerts you about 8 seconds before an upgrade finishes, or when the Clock Tower is ready. Keep the page open; closed pages, sleep, and browser suspension cannot guarantee timely alerts. Native Shortcuts and background scheduling are not available in this Web edition.')}</p></div><div class="about-section"><h3>${t('来源与致谢', 'Source & credits')}</h3><div class="credit-links"><a href="https://codeberg.org/leasin9/COCRecord" target="_blank" rel="noreferrer">COCRecord · ${t('原项目', 'Original app')}${icon('arrow')}</a><a href="https://github.com/lemonicy/clashpost" target="_blank" rel="noreferrer">clashpost · ${t('部落驿站', 'Chinese names')}${icon('arrow')}</a><a href="https://github.com/chiefpansancolt/clash-of-clans-data" target="_blank" rel="noreferrer">clash-of-clans-data${icon('arrow')}</a><a href="https://github.com/leasin9/cocParse" target="_blank" rel="noreferrer">${t('Web 版源码', 'Web source')}${icon('arrow')}</a></div></div>`, `<button class="button primary" data-action="close">${t('知道了', 'Got it')}</button>`);
 }
 function renameDialog() {
   const account = selectedAccount();
@@ -257,7 +306,8 @@ async function checkNotifications() {
 }
 async function handleAction(action, button) {
   switch (action) {
-    case 'import': importDialog(); break;
+    case 'import': importDialog(); void scanClipboard({ interactive: true, allowedView: 'import' }); break;
+    case 'auto-clipboard': toggleAutoClipboard(); break;
     case 'accounts': accountsDialog(); break;
     case 'account-menu': accountMenuDialog(); break;
     case 'settings': settingsDialog(); break;
@@ -335,10 +385,15 @@ $('#dialog').addEventListener('dragover', event => { if ($('#dialog').open && $(
 $('#dialog').addEventListener('drop', event => { if ($('#dialog').open && $('#import-text') && event.dataTransfer.files.length) { event.preventDefault(); readFile(event.dataTransfer.files[0]); } });
 $('#dialog').addEventListener('click', event => { if (event.target === $('#dialog')) { const rect = $('#dialog').getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) $('#dialog').close(); } });
 window.addEventListener('storage', event => {
+  if (event.key === 'cocparse.autoClipboard' || event.key === null) {
+    try { autoClipboard = localStorage.getItem('cocparse.autoClipboard') !== 'false'; } catch { /* Keep this visit's setting. */ }
+  }
   if (event.key !== STORAGE_KEY && event.key !== null) return;
   try { state.accounts = loadAccounts(localStorage); state.storageError = false; if (!state.accounts.some(account => account.tag === state.selected)) state.selected = state.accounts[0]?.tag ?? null; rebuildNotifications(); render(); } catch { state.storageError = true; render(); }
 });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { tickCountdowns(); checkNotifications(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { tickCountdowns(); checkNotifications(); void scanClipboard(); } });
+window.addEventListener('focus', () => { void scanClipboard(); });
 render(); rebuildNotifications();
+void scanClipboard();
 setInterval(() => { if (currentSignature() !== completionSignature) render(); else tickCountdowns(); checkNotifications(); }, 1000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', { scope: './' }).then(worker => { registration = worker; }).catch(() => { /* Online use also works without offline support. */ });
