@@ -2,7 +2,7 @@
 
 [在线使用](https://leasin9.github.io/cocParse/) · [原生项目](https://codeberg.org/leasin9/COCRecord) · [来源与致谢](NOTICE.md)
 
-将 SwiftUI 版 COCRecord 迁移到浏览器的部落冲突多账号升级记录工具。采用 iOS 原生应用风格，支持系统深色模式。纯静态 HTML、CSS 和 JavaScript，直接部署到 GitHub Pages，无运行时依赖、无服务器、无需登录。
+将 SwiftUI 版 COCRecord 迁移到浏览器的部落冲突多账号升级记录工具。采用 iOS 原生应用风格，支持系统深色模式，主界面聚焦升级列表，账号操作通过菜单访问，加速和村庄详情按需展开。纯静态 HTML、CSS 和 JavaScript，直接部署到 GitHub Pages，无运行时依赖、无服务器、无需登录。
 
 ## 功能
 
@@ -24,7 +24,7 @@
 
 账号数据只保存在当前浏览器的 `localStorage` 中，不会上传到服务器。清理网站数据、更换浏览器或设备可能导致记录丢失；隐私模式也可能不保留数据。
 
-倒计时依据 JSON 的 `timestamp`（Unix 秒）和导出时剩余的 `timer`、`boosts` 计算，无法读取导出后新使用的药水或新开启的升级。进度条表示本次导出后、相对于导出时剩余升级时间的进度。
+倒计时依据 JSON 的 `timestamp`（Unix 秒）和导出时剩余的 `timer`、`boosts` 计算，无法读取导出后新使用的药水或新开启的升级。
 
 ### 提醒限制
 
